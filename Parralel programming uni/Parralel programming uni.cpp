@@ -2,9 +2,18 @@
 #include <random>
 using namespace std;
 
+void switch_rows(double* row1, double* row2, const int& N) {
+    double* tmp = new double[N];
+    for (int i = 0; i < N; i++)
+        tmp[i] = row1[i];
+    row1 = row2;
+    row2 = tmp;
+    delete[] row2;
+}
+
 int main() {
     int N;
-    double min = 0, max = 100;
+    double min = -100, max = 100;
 
     cout << "Select number of equations: ";
     cin >> N;
@@ -21,9 +30,29 @@ int main() {
             matrix[i][j] = distr(gen);
         }
     }
+
+    // Searching for maximum first multiplier
+    double max_elem = abs(matrix[0][0]);
+    int index = 0;
+    for (int i = 1; i < N; i++) {
+        double first_elem = abs(matrix[i][0]);
+        if (max_elem < first_elem) {
+            max_elem = first_elem;
+            index = i;
+        }
+    }
+    
+    // Making the row with the max element first
+    switch_rows(matrix[0], matrix[index], N);
+
     
 
 
+
+
+    for (int i = 0; i < N; i++)
+        delete[] matrix[i];
+    delete[] matrix;
     return 0;
 }
 
