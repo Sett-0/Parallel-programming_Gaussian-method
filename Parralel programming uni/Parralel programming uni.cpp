@@ -3,13 +3,10 @@
 #include <random>
 using namespace std;
 
-void swap_rows(double* row1, double* row2, const int& N) {
-    double* tmp = new double[N + 1];
-    for (int i = 0; i < N; i++)
-        tmp[i] = row1[i];
-    row1 = row2;
-    row2 = tmp;
-    delete[] row2;
+void swap_rows(double** matrix, int row1, int row2) {
+    double* tmp = matrix[row1];
+    matrix[row1] = matrix[row2];
+    matrix[row2] = tmp;
 }
 
 void print_matrix(double** matrix, const int& N, int limit_cols = 8, int limit_rows = 8) {
@@ -86,11 +83,11 @@ int main() {
 
         // Making the row with the max element first
         if (index != 0)
-            swap_rows(matrix[k], matrix[index], N);
+            swap_rows(matrix, k, index);
 
         // Normalizing the matrix
         for (int i = k; i < N; i++) {
-            for (int j = k; j < N + 1; j++) {
+            for (int j = N; j >= k; j--) {
                 matrix[i][j] /= matrix[i][k];
             }
         }
@@ -109,7 +106,7 @@ int main() {
     for (int i = N - 2; i >= 0; i--) {
         double right_side = matrix[i][N];
         for (int k = N - 1; k > i; k--)
-            right_side -= X[k];
+            right_side -= matrix[i][k] * X[k];
         X[i] = right_side / matrix[i][i];
     }
 
