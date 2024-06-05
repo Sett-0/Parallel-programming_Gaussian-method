@@ -10,7 +10,7 @@ void swap_rows(double** matrix, int row1, int row2) {
     matrix[row2] = tmp;
 }
 
-void print_matrix(double** matrix, const int& N, int limit_cols = 8, int limit_rows = 8) {
+void print_matrix(double** matrix, const int& N, int limit_cols = 10, int limit_rows = 10) {
     for (int i = 0; i < N; i++) {
         if (i != limit_rows) {
             cout << "|\t";
@@ -110,15 +110,19 @@ int main() {
             }
         }
     }
+    // Normalizing the last row
+    matrix[N - 1][N] /= matrix[N - 1][N - 1];
+    matrix[N - 1][N - 1] = 1.0;
 
     // Back substitution
     double* X = new double[N];
-    X[N - 1] = matrix[N - 1][N] / matrix[N - 1][N - 1];
+    for (int i = N - 1; i >= 0; i--)
+        X[i] = matrix[i][N];
+
     for (int i = N - 2; i >= 0; i--) {
-        double right_side = matrix[i][N];
-        for (int k = N - 1; k > i; k--)
-            right_side -= matrix[i][k] * X[k];
-        X[i] = right_side / matrix[i][i];
+        for (int k = i; k >= 0; k--) {
+            X[k] -= matrix[k][i + 1] * X[i + 1];
+        }
     }
 
     // Timer end

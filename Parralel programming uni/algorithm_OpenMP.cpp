@@ -99,7 +99,7 @@ int main() {
             swap_rows(matrix, k, index);
 
         // Normalizing the matrix
-#       pragma omp parallel for
+#       pragma omp parallel for collapse(2)
         for (int i = k; i < N; i++) {
             for (int j = N; j >= k; j--) {
                 matrix[i][j] /= matrix[i][k];
@@ -107,7 +107,7 @@ int main() {
         }
 
         // Substracting the first row from every other row
-#       pragma omp parallel for 
+#       pragma omp parallel for collapse(2)
         for (int i = k + 1; i < N; i++) {
             for (int j = k; j < N + 1; j++) {
                 matrix[i][j] -= matrix[k][j];

@@ -1,7 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include <random>
-#include <chrono>
+#include "mpi.h"
 using namespace std;
 
 void swap_rows(double** matrix, int row1, int row2) {
@@ -10,11 +10,18 @@ void swap_rows(double** matrix, int row1, int row2) {
     matrix[row2] = tmp;
 }
 
-void print_matrix(double** matrix, const int& N, int limit_cols = 8, int limit_rows = 8) {
-    for (int i = 0; i < N; i++) {
+void swap_rows(double* arr, int row1, int row2) {
+    double tmp = arr[row1];
+    arr[row1] = arr[row2];
+    arr[row2] = tmp;
+}
+
+void print_matrix(double** matrix, int N_rows, int N_cols = -1, int limit_cols = 10, int limit_rows = 10) {
+    if (N_cols == -1) N_cols = N_rows;
+    for (int i = 0; i < N_rows; i++) {
         if (i != limit_rows) {
             cout << "|\t";
-            for (int j = 0; j < N + 1; j++) {
+            for (int j = 0; j < N_cols + 1; j++) {
                 if (j != limit_cols)
                     cout << setprecision(3) << matrix[i][j] << "\t";
                 else {
@@ -32,7 +39,7 @@ void print_matrix(double** matrix, const int& N, int limit_cols = 8, int limit_r
             break;
         }
     }
-    cout << endl;
+    cout << endl << endl << endl;
 }
 
 void print_X(double* X, const int& N, int limit_cols = 8) {
@@ -47,91 +54,191 @@ void print_X(double* X, const int& N, int limit_cols = 8) {
     cout << "X" << N << " = " << X[N - 1] << ".\n\n";
 }
 
-template <typename time_point = chrono::steady_clock::time_point>
-void print_time(time_point const& start, time_point const& stop) {
-    cout << "Time taken: " << setprecision(5) << fixed
-        << chrono::duration_cast<chrono::microseconds>(stop - start).count() / 1e6
-        << " seconds.\n";
+void print_time(double const& start, double const& stop) {
+    cout << "Time taken: " << setprecision(5) << stop - start << " seconds.\n";
 }
 
 int main() {
-    int N;
+    int N, local_N, mod, rank, size, root = 0;
     double min = -100, max = 100;
+    double start, stop;
+    double** matrix, ** local_matrix, * matrix_data, * local_matrix_data;
+    MPI_Comm comm = MPI_COMM_WORLD;
 
-    cout << "Select number of equations: ";
-    cin >> N;
+    // MPI Initialization
+    MPI_Init(NULL, NULL);
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &size);
 
-    // Generating random double in range
-    random_device rd; // obtain a random number from hardware
-    mt19937 gen(rd()); // seed the generator
-    uniform_real_distribution<> distr(min, max); // define the range
-
-    // Filling the matrix with random float numbers
-    double** matrix = new double* [N];
-    for (int i = 0; i < N; i++) {
-        matrix[i] = new double[N + 1]; // N + 1 because of the Y vector
-        for (int j = 0; j < N + 1; j++)
-            matrix[i][j] = distr(gen);
+    // Matrix initialization
+    if (rank == root) {
+        cout << "Select number of equations: ";
+        cin >> N;
     }
 
-    // Timer start
-    auto start = chrono::steady_clock::now();
+    MPI_Bcast(&N, 1, MPI_INT, root, comm);
+    local_N = N / size, mod = N % size;
+
+    matrix_data = new double[N * (N + 1)];
+    matrix = new double* [N];
+    for (int i = 0; i < N; i++)
+        matrix[i] = &(matrix_data[i * (N + 1)]);
+
+    local_matrix_data = new double[local_N * (N + 1)];
+    local_matrix = new double* [local_N];
+    for (int i = 0; i < local_N; i++)
+        local_matrix[i] = &(local_matrix_data[i * (N + 1)]);
+
+    if (rank == root) {
+        // Generating random double in range
+        random_device rd; // obtain a random number from hardware
+        mt19937 gen(rd()); // seed the generator
+        uniform_real_distribution<> distr(min, max); // define the range
+
+        // Filling the matrix with random float numbers
+        for (int i = 0; i < N; i++)
+            for (int j = 0; j < N + 1; j++)
+                matrix[i][j] = distr(gen);
+        
+        // Timer start
+        start = MPI_Wtime();
+    }
+
+    MPI_Scatter(matrix_data, local_N * (N + 1), MPI_DOUBLE, 
+      &(local_matrix[0][0]), local_N * (N + 1), MPI_DOUBLE, root, comm);
 
     // Forward elimination
-    for (int k = 0; k < N - 1; k++) {
+    int shift = 0;  // Will be used for keeping track of already changed rows
+    for (int k = 0; k < N; k++) {
         // Searching for the maximum nonzero first multiplier
-        double max_elem = 0;
-        int index = k;
-        for (int i = k; i < N; i++) {
-            double first_elem = abs(matrix[i][k]);
-            if (max_elem < first_elem) {
-                max_elem = first_elem;
-                index = i;
+        double local_max_elem = 0;
+        int local_index = 0;
+        for (int i = shift; i < local_N; i++) {
+            double first_elem = abs(local_matrix[i][k]);
+            if (local_max_elem < first_elem) {
+                local_max_elem = first_elem;
+                local_index = i;
             }
         }
-        if (max_elem == 0)
+
+        struct Package { double max_elem; int rank; };
+
+        Package p_global { 0, 0 };
+        Package p_local { local_max_elem, rank };
+
+        MPI_Allreduce(&p_local, &p_global, 1, MPI_DOUBLE_INT, MPI_MAXLOC, comm);
+
+        if (rank == root && p_global.max_elem == 0)
             return -1;
 
-        // Making the row with the max element first
-        if (index != 0)
-            swap_rows(matrix, k, index);
+        // Pivot row that will be send to all processes and used for subtraction
+        double* pivot_row = new double[N + 1 - k];
+        if (rank == p_global.rank)
+            for (int i = 0; i < N + 1 - k; i++)
+                pivot_row[i] = local_matrix[local_index][i + k];
 
-        // Normalizing the matrix
-        for (int i = k; i < N; i++) {
-            for (int j = N; j >= k; j--) {
-                matrix[i][j] /= matrix[i][k];
-            }
+        MPI_Bcast(pivot_row, N + 1 - k, MPI_DOUBLE, p_global.rank, comm);
+
+        // Subtracting the pivot row from the every other
+        if (rank == p_global.rank) {
+            for (int i = shift; i < local_N; i++)
+                if (i != local_index)
+                    for (int j = N; j >= k; j--) {
+                        local_matrix[i][j] /= local_matrix[i][k];
+                        local_matrix[i][j] -= pivot_row[j - k] / pivot_row[0];
+                    }
+                else
+                    for (int j = N; j >= k; j--)
+                        local_matrix[i][j] /= pivot_row[0];
+            swap_rows(local_matrix, local_index, shift);
+            shift++;
+        }
+        else {
+            for (int i = shift; i < local_N; i++)
+                for (int j = N; j >= k; j--) {
+                    local_matrix[i][j] /= local_matrix[i][k];
+                    local_matrix[i][j] -= pivot_row[j - k] / pivot_row[0];
+                }
         }
 
-        // Substracting the first row from every other row
-        for (int i = k + 1; i < N; i++) {
-            for (int j = k; j < N + 1; j++) {
-                matrix[i][j] -= matrix[k][j];
-            }
-        }
+        delete[] pivot_row;
     }
+
+    MPI_Gather(local_matrix_data, local_N * (N + 1), MPI_DOUBLE,
+        &(matrix[0][0]), local_N * (N + 1), MPI_DOUBLE, root, comm);
 
     // Back substitution
     double* X = new double[N];
-    X[N - 1] = matrix[N - 1][N] / matrix[N - 1][N - 1];
-    for (int i = N - 2; i >= 0; i--) {
-        double right_side = matrix[i][N];
-        for (int k = N - 1; k > i; k--)
-            right_side -= matrix[i][k] * X[k];
-        X[i] = right_side / matrix[i][i];
+    double* local_X = new double[local_N];
+
+    double x;
+    bool found_x = false;
+    shift = local_N - 1;
+
+    for (int i = shift; i >= 0; i--) {
+        local_X[i] = local_matrix[i][N];
+        if (local_matrix[i][N - 1] == 1.0)
+            found_x = true;
     }
 
-    // Timer end
-    auto stop = chrono::steady_clock::now();
+    if (found_x) {
+        x = local_X[shift--];
+        for (int receiver = 0; receiver < size; receiver++)
+            if (rank != receiver)
+                MPI_Send(&x, 1, MPI_DOUBLE, receiver, 0, comm);
+        found_x = false;
+    }
+    else
+        MPI_Recv(&x, 1, MPI_DOUBLE, MPI_ANY_SOURCE, 0, comm, MPI_STATUS_IGNORE);
+
+    X[N - 1] = x;
+
+    for (int k = N - 1; k > 0; k--) {
+        for (int i = shift; i >= 0; i--) {
+            local_X[i] -= local_matrix[i][k] * X[k];
+            if (local_matrix[i][k - 1] == 1.0)
+                found_x = true;
+        }
+
+        if (found_x) {
+            x = local_X[shift--];
+            //cout << k - 1 << ": \t" << x << endl;
+            for (int receiver = 0; receiver < size; receiver++)
+                if (rank != receiver)
+                    MPI_Send(&x, 1, MPI_DOUBLE, receiver, 0, comm);
+            found_x = false;
+        }
+        else
+            MPI_Recv(&x, 1, MPI_DOUBLE, MPI_ANY_SOURCE, 0, comm, MPI_STATUS_IGNORE);
+
+        MPI_Barrier(comm);
+        X[k - 1] = x;
+    }
 
     // Showing results
-    print_matrix(matrix, N);
-    print_X(X, N);
-    print_time(start, stop);
+    if (rank == root) {
+        // Timer end
+        stop = MPI_Wtime();
 
-    for (int i = 0; i < N; i++)
-        delete[] matrix[i];
-    delete[] matrix;
+        // Sorting the matrix (just to make it look better)
+        for (int i = 0; i < N - 1; i++)
+            for (int j = i; j < N; j++)
+                if (matrix[j][i] == 1.0) {
+                    swap_rows(matrix, j, i);
+                    break;
+                }
+
+        print_matrix(matrix, N);
+        print_X(X, N);
+        print_time(start, stop);
+    }
+
     delete[] X;
+    delete[] local_X;
+    delete[] local_matrix_data;
+    delete[] local_matrix;
+    delete[] matrix_data;
+    delete[] matrix;
+    MPI_Finalize();
     return 0;
 }
