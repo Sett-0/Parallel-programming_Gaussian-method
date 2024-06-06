@@ -60,7 +60,7 @@ int main() {
 
     // Generating random double in range
     random_device rd; // obtain a random number from hardware
-    mt19937 gen(rd()); // seed the generator
+    mt19937 gen(0);// rd()); // seed the generator
     uniform_real_distribution<> distr(min, max); // define the range
 
     // Filling the matrix with random float numbers
@@ -82,7 +82,7 @@ int main() {
         // Searching for the maximum nonzero first multiplier
         double max_elem = 0;
         int index = k;
-#       pragma omp parallel for
+#       pragma omp parallel for num_threads(1)
         for (int i = k; i < N; i++) {
             double first_elem = abs(matrix[i][k]);
             if (max_elem < first_elem) {
@@ -99,7 +99,7 @@ int main() {
             swap_rows(matrix, k, index);
 
         // Normalizing the matrix
-#       pragma omp parallel for collapse(2)
+#       pragma omp parallel for collapse(2) num_threads(1)
         for (int i = k; i < N; i++) {
             for (int j = N; j >= k; j--) {
                 matrix[i][j] /= matrix[i][k];
@@ -107,7 +107,7 @@ int main() {
         }
 
         // Substracting the first row from every other row
-#       pragma omp parallel for collapse(2)
+#       pragma omp parallel for collapse(2) num_threads(1)
         for (int i = k + 1; i < N; i++) {
             for (int j = k; j < N + 1; j++) {
                 matrix[i][j] -= matrix[k][j];
@@ -120,12 +120,12 @@ int main() {
 
     // Back substitution
     double* X = new double[N];
-#   pragma omp parallel for
+#   pragma omp parallel for num_threads(1)
     for (int i = N - 1; i >= 0; i--)
         X[i] = matrix[i][N];
 
     for (int i = N - 2; i >= 0; i--) {
-#       pragma omp parallel for
+#       pragma omp parallel for num_threads(1)
         for (int k = i; k >= 0; k--) {
             X[k] -= matrix[k][i + 1] * X[i + 1];
         }

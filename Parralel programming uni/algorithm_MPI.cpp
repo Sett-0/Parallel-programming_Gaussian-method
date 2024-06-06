@@ -10,12 +10,6 @@ void swap_rows(double** matrix, int row1, int row2) {
     matrix[row2] = tmp;
 }
 
-void swap_rows(double* arr, int row1, int row2) {
-    double tmp = arr[row1];
-    arr[row1] = arr[row2];
-    arr[row2] = tmp;
-}
-
 void print_matrix(double** matrix, int N_rows, int N_cols = -1, int limit_cols = 10, int limit_rows = 10) {
     if (N_cols == -1) N_cols = N_rows;
     for (int i = 0; i < N_rows; i++) {
@@ -39,7 +33,7 @@ void print_matrix(double** matrix, int N_rows, int N_cols = -1, int limit_cols =
             break;
         }
     }
-    cout << endl << endl << endl;
+    cout << endl;
 }
 
 void print_X(double* X, const int& N, int limit_cols = 8) {
@@ -51,7 +45,7 @@ void print_X(double* X, const int& N, int limit_cols = 8) {
             break;
         }
     }
-    cout << "X" << N << " = " << X[N - 1] << ".\n\n";
+    cout << "X" << N << " = " << X[N - 1] << ".\n";
 }
 
 void print_time(double const& start, double const& stop) {
@@ -92,7 +86,7 @@ int main() {
     if (rank == root) {
         // Generating random double in range
         random_device rd; // obtain a random number from hardware
-        mt19937 gen(rd()); // seed the generator
+        mt19937 gen(0);//rd()); // seed the generator
         uniform_real_distribution<> distr(min, max); // define the range
 
         // Filling the matrix with random float numbers

@@ -63,7 +63,7 @@ int main() {
 
     // Generating random double in range
     random_device rd; // obtain a random number from hardware
-    mt19937 gen(rd()); // seed the generator
+    mt19937 gen(0); //rd()); // seed the generator
     uniform_real_distribution<> distr(min, max); // define the range
 
     // Filling the matrix with random float numbers
