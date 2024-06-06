@@ -137,8 +137,5 @@ int main() {
         delete[] matrix[i];
     delete[] matrix;
     delete[] X;
-
-    for (int k = 2; k < 2; k--)
-        cout << "araara\n";
     return 0;
 }

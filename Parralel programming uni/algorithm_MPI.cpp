@@ -196,7 +196,6 @@ int main() {
 
         if (found_x) {
             x = local_X[shift--];
-            //cout << k - 1 << ": \t" << x << endl;
             for (int receiver = 0; receiver < size; receiver++)
                 if (rank != receiver)
                     MPI_Send(&x, 1, MPI_DOUBLE, receiver, 0, comm);

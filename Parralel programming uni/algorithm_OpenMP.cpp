@@ -44,7 +44,7 @@ void print_X(double* X, const int& N, int limit_cols = 8) {
             break;
         }
     }
-    cout << "X" << N << " = " << X[N - 1] << ".\n\n";
+    cout << "X" << N << " = " << X[N - 1] << ".\n";
 }
 
 void print_time(double const& start, double const& stop) {
@@ -82,7 +82,7 @@ int main() {
         // Searching for the maximum nonzero first multiplier
         double max_elem = 0;
         int index = k;
-#       pragma omp parallel for num_threads(1)
+#       pragma omp parallel for num_threads(8)
         for (int i = k; i < N; i++) {
             double first_elem = abs(matrix[i][k]);
             if (max_elem < first_elem) {
@@ -99,7 +99,7 @@ int main() {
             swap_rows(matrix, k, index);
 
         // Normalizing the matrix
-#       pragma omp parallel for collapse(2) num_threads(1)
+#       pragma omp parallel for collapse(2) num_threads(8)
         for (int i = k; i < N; i++) {
             for (int j = N; j >= k; j--) {
                 matrix[i][j] /= matrix[i][k];
@@ -107,7 +107,7 @@ int main() {
         }
 
         // Substracting the first row from every other row
-#       pragma omp parallel for collapse(2) num_threads(1)
+#       pragma omp parallel for collapse(2) num_threads(8)
         for (int i = k + 1; i < N; i++) {
             for (int j = k; j < N + 1; j++) {
                 matrix[i][j] -= matrix[k][j];
@@ -120,12 +120,12 @@ int main() {
 
     // Back substitution
     double* X = new double[N];
-#   pragma omp parallel for num_threads(1)
+#   pragma omp parallel for num_threads(8)
     for (int i = N - 1; i >= 0; i--)
         X[i] = matrix[i][N];
 
     for (int i = N - 2; i >= 0; i--) {
-#       pragma omp parallel for num_threads(1)
+#       pragma omp parallel for num_threads(8)
         for (int k = i; k >= 0; k--) {
             X[k] -= matrix[k][i + 1] * X[i + 1];
         }
